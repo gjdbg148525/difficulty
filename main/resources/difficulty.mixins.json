@@ -1,0 +1,13 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "refmap": "difficulty.refmap.json",
+  "package": "com.tighug.difficulty.mixin",
+  "compatibilityLevel": "JAVA_8",
+  "mixins": [
+    "onLivingEntity"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
