@@ -287,10 +287,10 @@ public class Difficulty {
                     int enchantmentLevel = EnchantmentHelper.getEnchantmentLevel(ModEnchantments.DAMAGE_ENCHANTMENT.get(), livingEntity);
                     if (enchantmentLevel > 0) {
                         event.getSource().bypassArmor();
-                        if (event.getAmount() > livingEntity.getAttributeValue(Attributes.ATTACK_DAMAGE) * 0.8) {
+                        if (event.getAmount() > (livingEntity.getAttributeValue(Attributes.ATTACK_DAMAGE) + 5 * enchantmentLevel) * 0.8) {
                             LivingEntity entityLiving = event.getEntityLiving();
                             double d = (entityLiving.getArmorValue() * 9 + entityLiving.getAttributeValue(Attributes.ARMOR_TOUGHNESS)) / 10d * enchantmentLevel;
-                            event.setAmount((float) ((event.getAmount() + d) * (1 + d / 100)));
+                            event.setAmount((float) ((event.getAmount() + d / 2d) * (1 + d / 100)));
                             if (!(entityLiving instanceof PlayerEntity)) {
                                 Multimap<Attribute, AttributeModifier> multimap = Multimaps.newMultimap(Maps.newHashMap(), Sets::newHashSet);
                                 if (day > 39 && entityLiving instanceof IMob) multimap.put(Attributes.MOVEMENT_SPEED, new AttributeModifier(uuid1, MODID, 0, AttributeModifier.Operation.MULTIPLY_TOTAL));
@@ -418,4 +418,5 @@ public class Difficulty {
         }
 
     }
+
 }

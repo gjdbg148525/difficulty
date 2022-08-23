@@ -2,10 +2,12 @@
   "required": true,
   "minVersion": "0.8",
   "refmap": "difficulty.refmap.json",
-  "package": "com.tighug.difficulty.mixin",
+  "package": "com.tighug.difficulty.entity.mixin",
   "compatibilityLevel": "JAVA_8",
   "mixins": [
-    "onLivingEntity"
+    "onClientPlayerEntity",
+    "onLivingEntity",
+    "onPlayerEntity"
   ],
   "injectors": {
     "defaultRequire": 1
