@@ -5,6 +5,7 @@ import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
 import com.google.common.collect.Sets;
 import com.tighug.difficulty.enchantment.ModEnchantments;
+import com.tighug.difficulty.entity.IEntity;
 import com.tighug.difficulty.potion.ModEffects;
 import com.tighug.difficulty.util.Config;
 import com.tighug.difficulty.util.Utils;
@@ -12,6 +13,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.settings.KeyBinding;
 import net.minecraft.enchantment.EnchantmentHelper;
 import net.minecraft.entity.AreaEffectCloudEntity;
+import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.ai.attributes.Attribute;
 import net.minecraft.entity.ai.attributes.AttributeModifier;
@@ -29,9 +31,11 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.potion.EffectInstance;
 import net.minecraft.potion.Effects;
 import net.minecraft.potion.PotionUtils;
+import net.minecraft.stats.Stats;
 import net.minecraft.util.math.RayTraceResult;
 import net.minecraft.world.Explosion;
 import net.minecraft.world.GameRules;
+import net.minecraft.world.end.DragonFightManager;
 import net.minecraft.world.server.ServerWorld;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
@@ -117,8 +121,8 @@ public class Difficulty {
 
     @Mod.EventBusSubscriber()
     public static class Event {
-        private final static UUID uuid = UUID.fromString("0E6A83B3-3E3C-9392-A21B-B4FED20168EC");
-        private final static UUID uuid1 = UUID.fromString("CEC0C635-6A99-1090-3C0F-C4ABBB38661E");
+        public final static UUID uuid = UUID.fromString("0E6A83B3-3E3C-9392-A21B-B4FED20168EC");
+        public final static UUID uuid1 = UUID.fromString("CEC0C635-6A99-1090-3C0F-C4ABBB38661E");
         private final static Map<LivingEntity, Runnable> MAP = Maps.newHashMap();
         private final static Set<Explosion> LIST_MAP = Sets.newHashSet();
         private static float day;
@@ -133,65 +137,76 @@ public class Difficulty {
         @SubscribeEvent(priority = EventPriority.LOWEST)
         public static void onEntityJoinWorldEvent(EntityJoinWorldEvent event) {
             LivingEntity entity = event.getEntity() instanceof  LivingEntity ? (LivingEntity) event.getEntity() : null;
-            if (event.getWorld().isClientSide() || day <= 20) return;
-            if (entity instanceof IMob) {
-                float f1;
-                if (entity instanceof WitherEntity && ((WitherEntity) entity).getInvulnerableTicks() > 0) f1 = 1;
-                else f1 = Utils.clamp(entity.getHealth() / entity.getMaxHealth(), 0, 1);
-                Multimap<Attribute, AttributeModifier> multimap = Multimaps.newMultimap(Maps.newHashMap(), Sets::newHashSet);
-                float i = Utils.clamp(day / 20, 0, 10);
-                multimap.put(Attributes.FOLLOW_RANGE, new AttributeModifier(uuid, MODID, i, AttributeModifier.Operation.MULTIPLY_TOTAL));
-                i = Utils.clamp(day / 10, 0, Integer.MAX_VALUE);
-                multimap.put(Attributes.ARMOR, new AttributeModifier(uuid, MODID, i, AttributeModifier.Operation.ADDITION));
-                multimap.put(Attributes.ARMOR_TOUGHNESS, new AttributeModifier(uuid, MODID, i, AttributeModifier.Operation.ADDITION));
-                multimap.put(Attributes.KNOCKBACK_RESISTANCE, new AttributeModifier(uuid, MODID, i, AttributeModifier.Operation.ADDITION));
-                float f = Utils.clamp(day / 10f, 0, Float.MAX_VALUE);
-                multimap.put(Attributes.ATTACK_DAMAGE, new AttributeModifier(uuid, MODID, f, AttributeModifier.Operation.ADDITION));
-                f = Utils.clamp(day / 5f, 0, Float.MAX_VALUE);
-                multimap.put(Attributes.MAX_HEALTH, new AttributeModifier(uuid, MODID, f, AttributeModifier.Operation.ADDITION));
-                if (day > 40) {
-                    i = Utils.clamp(day / 40, 0, 10);
-                    multimap.put(Attributes.SPAWN_REINFORCEMENTS_CHANCE, new AttributeModifier(uuid1, MODID, -1, AttributeModifier.Operation.MULTIPLY_TOTAL));
-                    multimap.put(Attributes.ARMOR, new AttributeModifier(uuid1, MODID, i, AttributeModifier.Operation.MULTIPLY_TOTAL));
-                    multimap.put(Attributes.ARMOR_TOUGHNESS, new AttributeModifier(uuid1, MODID, i, AttributeModifier.Operation.MULTIPLY_TOTAL));
-                    multimap.put(Attributes.MOVEMENT_SPEED, new AttributeModifier(uuid1, MODID, i, AttributeModifier.Operation.MULTIPLY_TOTAL));
-                    multimap.put(Attributes.ATTACK_DAMAGE, new AttributeModifier(uuid1, MODID, i * 2, AttributeModifier.Operation.MULTIPLY_TOTAL));
-                    multimap.put(Attributes.MAX_HEALTH, new AttributeModifier(uuid1, MODID, i * 4, AttributeModifier.Operation.MULTIPLY_TOTAL));
-                }
-                entity.getAttributes().addTransientAttributeModifiers(multimap);
-                entity.setHealth(entity.getMaxHealth() * f1);
-            }
-            else if (event.getEntity() instanceof AbstractArrowEntity) {
-                AbstractArrowEntity arrowEntity = (AbstractArrowEntity) event.getEntity();
-                if (arrowEntity.getOwner() instanceof IMob) {
-                    float i1 = Utils.clamp(day / 5, 0, Integer.MAX_VALUE);
-                    arrowEntity.setBaseDamage(arrowEntity.getBaseDamage() + i1);
-                    if (day > 40) {
-                        int i = (int) Utils.clamp(day / 40, 0, 10) + 1;
-                        arrowEntity.setDeltaMovement(arrowEntity.getDeltaMovement().multiply(i, i, i));
-                    }
-                }
-            }
-            else if (event.getEntity() instanceof AreaEffectCloudEntity) {
+            if (event.getWorld().isClientSide()) return;
+            if (event.getEntity() instanceof AreaEffectCloudEntity) {
                 AreaEffectCloudEntity effectCloud = (AreaEffectCloudEntity) event.getEntity();
                 if (effectCloud.getOwner() instanceof EnderDragonEntity) {
-                    effectCloud.addEffect(new EffectInstance(ModEffects.HARM.get(), 1));
+                    int i = 0;
+                    if (day > 40) {
+                        i = (int) Utils.clamp(day / 40, 0, 10) + 1;
+                        effectCloud.setDeltaMovement(effectCloud.getDeltaMovement().multiply(i, i, i));
+                    }
+                    effectCloud.addEffect(new EffectInstance(ModEffects.DRAGON_BREATH.get(), 1, i));
                 }
             }
-            else if (event.getEntity() instanceof PotionEntity) {
-                PotionEntity potionEntity = (PotionEntity) event.getEntity();
-                if (potionEntity.getOwner() instanceof IMob) {
-                    List<EffectInstance> list = PotionUtils.getMobEffects(potionEntity.getItem());
-                    for (int i = 0; i < list.size(); ++i) {
-                        EffectInstance instance = list.get(i);
-                        if (instance.getEffect() == Effects.HEAL) {
-                            list.set(i, new EffectInstance(ModEffects.HEAL.get(), instance.getDuration(), instance.getAmplifier()));
-                        }
-                        else if (instance.getEffect() == Effects.HARM) {
-                            list.set(i, new EffectInstance(ModEffects.HARM.get(), instance.getDuration(), instance.getAmplifier()));
+            else if (day > 20) {
+                if (entity instanceof IMob) {
+                    if (entity instanceof EnderDragonEntity) {
+                        DragonFightManager dragonFight = ((EnderDragonEntity) entity).getDragonFight();
+                        if (dragonFight == null || !dragonFight.hasPreviouslyKilledDragon()) return;
+                    }
+                    float f1;
+                    if (entity instanceof WitherEntity && ((WitherEntity) entity).getInvulnerableTicks() > 0) f1 = 1;
+                    else f1 = Utils.clamp(entity.getHealth() / entity.getMaxHealth(), 0, 1);
+                    Multimap<Attribute, AttributeModifier> multimap = Multimaps.newMultimap(Maps.newHashMap(), Sets::newHashSet);
+                    float i = Utils.clamp(day / 20, 0, 10);
+                    multimap.put(Attributes.FOLLOW_RANGE, new AttributeModifier(uuid, MODID, i, AttributeModifier.Operation.MULTIPLY_TOTAL));
+                    i = Utils.clamp(day / 10, 0, Integer.MAX_VALUE);
+                    multimap.put(Attributes.ARMOR, new AttributeModifier(uuid, MODID, i, AttributeModifier.Operation.ADDITION));
+                    multimap.put(Attributes.ARMOR_TOUGHNESS, new AttributeModifier(uuid, MODID, i, AttributeModifier.Operation.ADDITION));
+                    multimap.put(Attributes.KNOCKBACK_RESISTANCE, new AttributeModifier(uuid, MODID, i, AttributeModifier.Operation.ADDITION));
+                    float f = Utils.clamp(day / 10f, 0, Float.MAX_VALUE);
+                    multimap.put(Attributes.ATTACK_DAMAGE, new AttributeModifier(uuid, MODID, f, AttributeModifier.Operation.ADDITION));
+                    f = Utils.clamp(day / 5f, 0, Float.MAX_VALUE);
+                    multimap.put(Attributes.MAX_HEALTH, new AttributeModifier(uuid, MODID, f, AttributeModifier.Operation.ADDITION));
+                    if (day > 40) {
+                        i = Utils.clamp(day / 40, 0, 10);
+                        multimap.put(Attributes.SPAWN_REINFORCEMENTS_CHANCE, new AttributeModifier(uuid1, MODID, -1, AttributeModifier.Operation.MULTIPLY_TOTAL));
+                        multimap.put(Attributes.ARMOR, new AttributeModifier(uuid1, MODID, i, AttributeModifier.Operation.MULTIPLY_TOTAL));
+                        multimap.put(Attributes.ARMOR_TOUGHNESS, new AttributeModifier(uuid1, MODID, i, AttributeModifier.Operation.MULTIPLY_TOTAL));
+                        multimap.put(Attributes.MOVEMENT_SPEED, new AttributeModifier(uuid1, MODID, i, AttributeModifier.Operation.MULTIPLY_TOTAL));
+                        multimap.put(Attributes.ATTACK_DAMAGE, new AttributeModifier(uuid1, MODID, i * 2, AttributeModifier.Operation.MULTIPLY_TOTAL));
+                        multimap.put(Attributes.MAX_HEALTH, new AttributeModifier(uuid1, MODID, i * 4, AttributeModifier.Operation.MULTIPLY_TOTAL));
+                    }
+                    entity.getAttributes().addTransientAttributeModifiers(multimap);
+                    entity.setHealth(entity.getMaxHealth() * f1);
+                }
+                else if (event.getEntity() instanceof AbstractArrowEntity) {
+                    AbstractArrowEntity arrowEntity = (AbstractArrowEntity) event.getEntity();
+                    if (arrowEntity.getOwner() instanceof IMob) {
+                        float i1 = Utils.clamp(day / 5, 0, Integer.MAX_VALUE);
+                        arrowEntity.setBaseDamage(arrowEntity.getBaseDamage() + i1);
+                        if (day > 40) {
+                            int i = (int) Utils.clamp(day / 40, 0, 10) + 1;
+                            arrowEntity.setDeltaMovement(arrowEntity.getDeltaMovement().multiply(i, i, i));
                         }
                     }
-                    PotionUtils.setCustomEffects(potionEntity.getItem(), list);
+                }
+                else if (event.getEntity() instanceof PotionEntity) {
+                    PotionEntity potionEntity = (PotionEntity) event.getEntity();
+                    if (potionEntity.getOwner() instanceof IMob) {
+                        List<EffectInstance> list = PotionUtils.getMobEffects(potionEntity.getItem());
+                        for (int i = 0; i < list.size(); ++i) {
+                            EffectInstance instance = list.get(i);
+                            if (instance.getEffect() == Effects.HEAL) {
+                                list.set(i, new EffectInstance(ModEffects.HEAL.get(), instance.getDuration(), instance.getAmplifier()));
+                            }
+                            else if (instance.getEffect() == Effects.HARM) {
+                                list.set(i, new EffectInstance(ModEffects.HARM.get(), instance.getDuration(), instance.getAmplifier()));
+                            }
+                        }
+                        PotionUtils.setCustomEffects(potionEntity.getItem(), list);
+                    }
                 }
             }
         }
@@ -221,18 +236,25 @@ public class Difficulty {
                 int enchantmentLevel = EnchantmentHelper.getEnchantmentLevel(ModEnchantments.DAMAGE_ENCHANTMENT.get(), (LivingEntity) event.getSource().getEntity());
                 if (enchantmentLevel > 0) {
                     LivingEntity entityLiving = event.getEntityLiving();
-                    Map<EquipmentSlotType, ItemStack> map = Maps.newHashMap();
-                    if (entityLiving.getArmorCoverPercentage() > 0) {
-                        Arrays.stream(EquipmentSlotType.values()).filter(equipmentSlotType -> equipmentSlotType.getType() == EquipmentSlotType.Group.ARMOR)
-                                .forEach(equipmentSlotType -> {
-                                    map.put(equipmentSlotType, entityLiving.getItemBySlot(equipmentSlotType));
-                                    entityLiving.setItemSlot(equipmentSlotType, ItemStack.EMPTY);
-                                });
-                        MAP.put(entityLiving, () -> {
-                            if (!(entityLiving instanceof PlayerEntity)) {
-                                map.keySet().forEach(equipmentSlotType -> entityLiving.setItemSlot(equipmentSlotType, map.get(equipmentSlotType)));
-                            }
-                            else {
+                    passArmor(enchantmentLevel, entityLiving);
+                }
+            }
+        }
+
+        public static void passArmor(int enchantmentLevel, @NotNull LivingEntity entityLiving) {
+            if (entityLiving.getArmorCoverPercentage() > 0) {
+                Map<EquipmentSlotType, ItemStack> map = Maps.newHashMap();
+                Arrays.stream(EquipmentSlotType.values()).filter(equipmentSlotType -> equipmentSlotType.getType() == EquipmentSlotType.Group.ARMOR)
+                        .forEach(equipmentSlotType -> {
+                            map.put(equipmentSlotType, entityLiving.getItemBySlot(equipmentSlotType));
+                            entityLiving.setItemSlot(equipmentSlotType, ItemStack.EMPTY);
+                        });
+                IEntity iEntity = (IEntity) entityLiving;
+                if (iEntity.hasQueue()) {
+                    iEntity.addQueueTask(entity -> {
+                        if (entity instanceof LivingEntity) {
+                            LivingEntity livingEntity = (LivingEntity) entity;
+                            if (livingEntity instanceof PlayerEntity) {
                                 map.values().forEach(itemStack -> {
                                     if (!itemStack.isEmpty() && itemStack.isDamageableItem()) {
                                         itemStack.setDamageValue(itemStack.getDamageValue() + Math.max(itemStack.getMaxDamage() / 10, 50) * enchantmentLevel);
@@ -241,17 +263,20 @@ public class Difficulty {
                                         }
                                     }
                                 });
-                                if (entityLiving.isAlive() || entityLiving.level.getGameRules().getBoolean(GameRules.RULE_KEEPINVENTORY)) {
+                                if (livingEntity.isAlive() || livingEntity.level.getGameRules().getBoolean(GameRules.RULE_KEEPINVENTORY)) {
                                     map.keySet().forEach(equipmentSlotType -> {
                                         ItemStack p_184201_2_ = map.get(equipmentSlotType);
                                         if (!p_184201_2_.isEmpty())
-                                            entityLiving.setItemSlot(equipmentSlotType, p_184201_2_);
+                                            livingEntity.setItemSlot(equipmentSlotType, p_184201_2_);
                                     });
                                 }
-                                else map.values().forEach(itemStack -> ((PlayerEntity) entityLiving).drop(itemStack, true, false));
+                                else map.values().forEach(itemStack -> ((PlayerEntity) livingEntity).drop(itemStack, true, false));
                             }
-                        });
-                    }
+                            else {
+                                map.keySet().forEach(equipmentSlotType -> livingEntity.setItemSlot(equipmentSlotType, map.get(equipmentSlotType)));
+                            }
+                        }
+                    });
                 }
             }
         }
@@ -259,7 +284,6 @@ public class Difficulty {
         @SubscribeEvent(priority = EventPriority.HIGHEST)
         public static void onPlayerHurtEvent(LivingHurtEvent event) {
             if (event.getSource().getEntity() instanceof LivingEntity && !event.getEntityLiving().level.isClientSide()) {
-                LivingEntity livingEntity = (LivingEntity) event.getSource().getEntity();
                 if (event.getSource().isExplosion()) {
                     if (!LIST_MAP.isEmpty()) {
                         AtomicReference<Explosion> explosion1 = new AtomicReference<>();
@@ -284,6 +308,7 @@ public class Difficulty {
                     }
                 }
                 else {
+                    LivingEntity livingEntity = (LivingEntity) event.getSource().getEntity();
                     int enchantmentLevel = EnchantmentHelper.getEnchantmentLevel(ModEnchantments.DAMAGE_ENCHANTMENT.get(), livingEntity);
                     if (enchantmentLevel > 0) {
                         event.getSource().bypassArmor();
@@ -291,13 +316,15 @@ public class Difficulty {
                             LivingEntity entityLiving = event.getEntityLiving();
                             double d = (entityLiving.getArmorValue() * 9 + entityLiving.getAttributeValue(Attributes.ARMOR_TOUGHNESS)) / 10d * enchantmentLevel;
                             event.setAmount((float) ((event.getAmount() + d / 2d) * (1 + d / 100)));
-                            if (!(entityLiving instanceof PlayerEntity)) {
+                            if (entityLiving instanceof PlayerEntity) {
+                                entityLiving.addEffect(new EffectInstance(Effects.MOVEMENT_SLOWDOWN, 20 + entityLiving.getRandom().nextInt(20), 3));
+                            }
+                            else {
                                 Multimap<Attribute, AttributeModifier> multimap = Multimaps.newMultimap(Maps.newHashMap(), Sets::newHashSet);
                                 if (day > 39 && entityLiving instanceof IMob) multimap.put(Attributes.MOVEMENT_SPEED, new AttributeModifier(uuid1, MODID, 0, AttributeModifier.Operation.MULTIPLY_TOTAL));
                                 else multimap.put(Attributes.MOVEMENT_SPEED, new AttributeModifier(uuid1, MODID, -0.8, AttributeModifier.Operation.MULTIPLY_TOTAL));
                                 entityLiving.getAttributes().addTransientAttributeModifiers(multimap);
                             }
-                            else entityLiving.addEffect(new EffectInstance(Effects.MOVEMENT_SLOWDOWN, 20 + livingEntity.getRandom().nextInt(20), 3));
                         }
                     }
                 }
@@ -307,6 +334,12 @@ public class Difficulty {
         @SubscribeEvent(priority = EventPriority.LOWEST)
         public static void onLivingDamageEvent(LivingDamageEvent event) {
             LivingEntity entity = event.getEntityLiving();
+            if (!entity.level.isClientSide()) event.setAmount(advancedProtection(entity, event.getAmount()));
+        }
+
+        public static float advancedProtection(@NotNull Entity entity1, float amount) {
+            if (!(entity1 instanceof LivingEntity)) return amount;
+            LivingEntity entity = (LivingEntity) entity1;
             if (!entity.level.isClientSide()) {
                 int i = getInt(entity);
                 if (i > 0) {
@@ -316,9 +349,9 @@ public class Difficulty {
                     }
                     double i1 = i11 / (i + 1);
                     entity.invulnerableTime += i * 10;
-                    double v = Utils.clamp(event.getAmount() - i * 2, 0, i1) * (Utils.clamp(entity.getHealth() * 0.8d / i11, 0, 0.8d) + 0.2d);
+                    double v = Utils.clamp(amount - i * 2, 0, i1) * (Utils.clamp(entity.getHealth() * 0.8d / i11, 0, 0.8d) + 0.2d);
                     if (entity instanceof ServerPlayerEntity) {
-                        double f = event.getAmount() - v - new BigInteger("1").shiftLeft(i).doubleValue();
+                        double f = amount - v - new BigInteger("1").shiftLeft(i).doubleValue();
                         if (f > 1) {
                             f = f / (i / 2d);
                             Map<EquipmentSlotType, ItemStack> map = Maps.newHashMap();
@@ -331,14 +364,27 @@ public class Difficulty {
                                 f = Math.min(f / map.size(), Integer.MAX_VALUE);
                                 if (f > 1) {
                                     double finalF = f;
-                                    map.keySet().forEach(equipmentSlotType -> map.get(equipmentSlotType).hurtAndBreak((int) finalF, (ServerPlayerEntity) entity, player -> player.broadcastBreakEvent(equipmentSlotType)));
+                                    map.keySet().forEach(equipmentSlotType -> {
+                                        ItemStack stack = map.get(equipmentSlotType);
+                                        ServerPlayerEntity entity2 = (ServerPlayerEntity) entity;
+                                        if (finalF > 3 * stack.getMaxDamage()) {
+                                            stack.setDamageValue(stack.getMaxDamage());
+                                            entity2.broadcastBreakEvent(equipmentSlotType);
+                                            stack.shrink(1);
+                                            entity2.awardStat(Stats.ITEM_BROKEN.get(stack.getItem()));
+                                        }
+                                        else {
+                                            stack.hurtAndBreak((int) finalF, entity2, player -> player.broadcastBreakEvent(equipmentSlotType));
+                                        }
+                                    });
                                 }
                             }
                         }
                     }
-                    event.setAmount((float) v);
+                    return (float) v;
                 }
             }
+            return amount;
         }
 
         @SubscribeEvent(priority = EventPriority.LOWEST)
@@ -364,7 +410,6 @@ public class Difficulty {
                 }
             }
         }
-
 
         @SubscribeEvent(priority = EventPriority.LOWEST)
         public static void onExplosionDetonate(ExplosionEvent.Detonate event) {

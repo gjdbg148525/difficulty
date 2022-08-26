@@ -10,7 +10,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(ClientPlayerEntity.class)
-public class onClientPlayerEntity extends AbstractClientPlayerEntity {
+public abstract class onClientPlayerEntity extends AbstractClientPlayerEntity {
 
     public onClientPlayerEntity(ClientWorld p_i50991_1_, GameProfile p_i50991_2_) {
         super(p_i50991_1_, p_i50991_2_);

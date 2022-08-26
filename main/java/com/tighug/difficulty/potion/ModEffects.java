@@ -12,4 +12,5 @@ public class ModEffects {
     public static final DeferredRegister<Effect> POTIONS = DeferredRegister.create(ForgeRegistries.POTIONS, MODID);
     public static final RegistryObject<Effect> HEAL = POTIONS.register("health", () -> new HealEffect(EffectType.BENEFICIAL, 16262179));
     public static final RegistryObject<Effect> HARM = POTIONS.register("damage", () -> new HealEffect(EffectType.HARMFUL, 16262179));
+    public static final RegistryObject<Effect> DRAGON_BREATH = POTIONS.register("dragon_breath", DragonBreath::new);
 }
