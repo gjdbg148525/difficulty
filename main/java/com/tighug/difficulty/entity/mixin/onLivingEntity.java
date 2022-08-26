@@ -1,5 +1,6 @@
 package com.tighug.difficulty.entity.mixin;
 
+import com.google.common.collect.Multimap;
 import com.tighug.difficulty.Difficulty;
 import com.tighug.difficulty.enchantment.ModEnchantments;
 import com.tighug.difficulty.entity.ILivingEntity;
@@ -25,7 +26,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.Shadow;
 
-import java.util.Map;
+import java.util.Iterator;
 
 @Mixin(LivingEntity.class)
 public abstract class onLivingEntity extends Entity implements ILivingEntity {
@@ -157,106 +158,117 @@ public abstract class onLivingEntity extends Entity implements ILivingEntity {
 
     @SuppressWarnings("ConstantConditions")
     @Override
-    public int multipleHurt(@NotNull Map<DamageSource, Float> damageSourceFloatMap) {
-        if (this.level.isClientSide()) return 0;
+    public int multipleHurt(@NotNull Multimap<DamageSource, Float> damageSourceFloatMap) {
+        if (this.level.isClientSide() || damageSourceFloatMap.isEmpty()) return 0;
+        if (this.hasEffect(Effects.FIRE_RESISTANCE)) {
+            Iterator<DamageSource> iterator = damageSourceFloatMap.keySet().iterator();
+            iterator.forEachRemaining(ds -> {
+                if (ds.isFire()) iterator.remove();
+            });
+            if (damageSourceFloatMap.isEmpty()) return 0;
+        }
         int i = 0;
         boolean flag1 = true;
         DamageSource damageSource = null;
         for (DamageSource ds : damageSourceFloatMap.keySet()) {
-            double damage = damageSourceFloatMap.get(ds);
-            if (this.isDeadOrDying() || (ds.isFire() && this.hasEffect(Effects.FIRE_RESISTANCE)) || !(damage > 0))
-                continue;
-            damage = this.getDamageAfterMagicAbsorb(ds, this.getDamageAfterArmorAbsorb(ds, (float) damage)) / 2d;
-            double f = Math.max(0, damage - this.getAbsorptionAmount());
-            this.setAbsorptionAmount((float) (this.getAbsorptionAmount() - damage + f));
-            float v = (float) (damage - f);
-            boolean instance = ServerPlayerEntity.class.isInstance(this);
-            if (v > 0.0F && v < 3.4028235E37F) {
-                if (ds.getEntity() instanceof ServerPlayerEntity)
-                    ((ServerPlayerEntity) ds.getEntity()).awardStat(Stats.DAMAGE_DEALT_ABSORBED, Math.round(v * 10.0F));
-                if (instance)
-                    ServerPlayerEntity.class.cast(this).awardStat(Stats.DAMAGE_ABSORBED, Math.round(v * 10.0F));
-            }
-            float f2 = Difficulty.Event.advancedProtection(this, (float) (f + damage));
-            float f1 = this.getHealth();
-            this.getCombatTracker().recordDamage(ds, f1, f2);
-            this.setHealth(f1 - f2);
-            if (instance) {
-                ServerPlayerEntity cast = ServerPlayerEntity.class.cast(this);
-                cast.causeFoodExhaustion(ds.getFoodExhaustion());
-                CriteriaTriggers.ENTITY_HURT_PLAYER.trigger(cast, ds, damageSourceFloatMap.get(ds), f2, false);
-                if (f2 < 3.4028235E37F) {
-                    cast.awardStat(Stats.DAMAGE_TAKEN, Math.round(f2 * 10.0F));
+            for (float de : damageSourceFloatMap.get(ds)) {
+                double damage = de;
+                if (this.isDeadOrDying() || !(damage > 0))
+                    continue;
+                damage = this.getDamageAfterMagicAbsorb(ds, this.getDamageAfterArmorAbsorb(ds, (float) damage)) / 2d;
+                double f = Math.max(0, damage - this.getAbsorptionAmount());
+                this.setAbsorptionAmount((float) (this.getAbsorptionAmount() - damage + f));
+                float v = (float) (damage - f);
+                boolean instance = ServerPlayerEntity.class.isInstance(this);
+                if (v > 0.0F && v < 3.4028235E37F) {
+                    if (ds.getEntity() instanceof ServerPlayerEntity)
+                        ((ServerPlayerEntity) ds.getEntity()).awardStat(Stats.DAMAGE_DEALT_ABSORBED, Math.round(v * 10.0F));
+                    if (instance)
+                        ServerPlayerEntity.class.cast(this).awardStat(Stats.DAMAGE_ABSORBED, Math.round(v * 10.0F));
                 }
-                if (f1 > 0.0F && f1 < 3.4028235E37F) {
-                    cast.awardStat(Stats.DAMAGE_BLOCKED_BY_SHIELD, Math.round(f1 * 10.0F));
+                float f2 = Difficulty.Event.advancedProtection(this, (float) (f + damage));
+                float f1 = this.getHealth();
+                this.getCombatTracker().recordDamage(ds, f1, f2);
+                this.setHealth(f1 - f2);
+                if (instance) {
+                    ServerPlayerEntity cast = ServerPlayerEntity.class.cast(this);
+                    cast.causeFoodExhaustion(ds.getFoodExhaustion());
+                    CriteriaTriggers.ENTITY_HURT_PLAYER.trigger(cast, ds, de, f2, false);
+                    if (f2 < 3.4028235E37F) {
+                        cast.awardStat(Stats.DAMAGE_TAKEN, Math.round(f2 * 10.0F));
+                    }
+                    if (f1 > 0.0F && f1 < 3.4028235E37F) {
+                        cast.awardStat(Stats.DAMAGE_BLOCKED_BY_SHIELD, Math.round(f1 * 10.0F));
+                    }
                 }
-            }
-            Entity entity1 = ds.getEntity();
-            if (entity1 != null) {
-                if (entity1 instanceof LivingEntity) {
-                    this.setLastHurtByMob((LivingEntity) entity1);
-                }
+                Entity entity1 = ds.getEntity();
+                if (entity1 != null) {
+                    if (entity1 instanceof LivingEntity) {
+                        this.setLastHurtByMob((LivingEntity) entity1);
+                    }
 
-                if (entity1 instanceof ServerPlayerEntity) {
-                    this.lastHurtByPlayerTime = 100;
-                    this.lastHurtByPlayer = (PlayerEntity) entity1;
-                    CriteriaTriggers.PLAYER_HURT_ENTITY.trigger((ServerPlayerEntity) entity1, this, ds, damageSourceFloatMap.get(ds), f2, false);
-                } else if (entity1 instanceof TameableEntity) {
-                    TameableEntity wolfentity = (TameableEntity) entity1;
-                    if (wolfentity.isTame()) {
+                    if (entity1 instanceof ServerPlayerEntity) {
                         this.lastHurtByPlayerTime = 100;
-                        LivingEntity livingentity = wolfentity.getOwner();
-                        if (livingentity != null && livingentity.getType() == EntityType.PLAYER) {
-                            this.lastHurtByPlayer = (PlayerEntity) livingentity;
-                        } else {
-                            this.lastHurtByPlayer = null;
+                        this.lastHurtByPlayer = (PlayerEntity) entity1;
+                        CriteriaTriggers.PLAYER_HURT_ENTITY.trigger((ServerPlayerEntity) entity1, this, ds, de, f2, false);
+                    } else if (entity1 instanceof TameableEntity) {
+                        TameableEntity wolfentity = (TameableEntity) entity1;
+                        if (wolfentity.isTame()) {
+                            this.lastHurtByPlayerTime = 100;
+                            LivingEntity livingentity = wolfentity.getOwner();
+                            if (livingentity != null && livingentity.getType() == EntityType.PLAYER) {
+                                this.lastHurtByPlayer = (PlayerEntity) livingentity;
+                            } else {
+                                this.lastHurtByPlayer = null;
+                            }
                         }
                     }
                 }
-            }
-            if (ds instanceof EntityDamageSource && ((EntityDamageSource) ds).isThorns()) {
-                this.level.broadcastEntityEvent(this, (byte) 33);
-            }
-            else {
-                byte b0;
-                if (ds == DamageSource.DROWN) {
-                    b0 = 36;
-                } else if (ds.isFire()) {
-                    b0 = 37;
-                } else if (ds == DamageSource.SWEET_BERRY_BUSH) {
-                    b0 = 44;
-                } else {
-                    b0 = 2;
+                if (ds instanceof EntityDamageSource && ((EntityDamageSource) ds).isThorns()) {
+                    this.level.broadcastEntityEvent(this, (byte) 33);
                 }
-
-                this.level.broadcastEntityEvent(this, b0);
-            }
-            if (this.isDeadOrDying()) {
-                if (!this.checkTotemDeathProtection(ds)) {
-                    SoundEvent soundevent = this.getDeathSound();
-                    if (flag1 && soundevent != null) {
-                        flag1 = false;
-                        this.playSound(soundevent, this.getSoundVolume(), this.getVoicePitch());
+                else {
+                    byte b0;
+                    if (ds == DamageSource.DROWN) {
+                        b0 = 36;
+                    } else if (ds.isFire()) {
+                        b0 = 37;
+                    } else if (ds == DamageSource.SWEET_BERRY_BUSH) {
+                        b0 = 44;
+                    } else {
+                        b0 = 2;
                     }
-                    this.die(ds);
+
+                    this.level.broadcastEntityEvent(this, b0);
                 }
+                if (this.isDeadOrDying()) {
+                    if (!this.checkTotemDeathProtection(ds)) {
+                        SoundEvent soundevent = this.getDeathSound();
+                        if (flag1 && soundevent != null) {
+                            flag1 = false;
+                            this.playSound(soundevent, this.getSoundVolume(), this.getVoicePitch());
+                        }
+                        this.die(ds);
+                    }
+                }
+                else if (flag1) {
+                    flag1 = false;
+                    this.playHurtSound(ds);
+                }
+                if (damageSource == null || ds.isBypassInvul()) damageSource = ds;
+                ++i;
             }
-            else if (flag1) {
-                flag1 = false;
-                this.playHurtSound(ds);
-            }
-            if (damageSource == null || ds.isBypassInvul()) damageSource = ds;
-            ++i;
         }
         if (i != 0) {
             if (this.isSleeping()) {
                 this.stopSleeping();
             }
+            if (this.lastDamageStamp != this.level.getGameTime()) {
+                this.lastDamageStamp = this.level.getGameTime();
+                this.lastDamageSource = damageSource;
+            }
             this.noActionTime = 0;
             this.animationSpeed = 1.5F;
-            this.lastDamageSource = damageSource;
-            this.lastDamageStamp = this.level.getGameTime();
             this.hurtDir = 0.0F;
             this.hurtDuration = 10;
             this.hurtTime = this.hurtDuration;

@@ -250,8 +250,7 @@ public class Difficulty {
                             entityLiving.setItemSlot(equipmentSlotType, ItemStack.EMPTY);
                         });
                 IEntity iEntity = (IEntity) entityLiving;
-                if (iEntity.hasQueue()) {
-                    iEntity.addQueueTask(entity -> {
+                iEntity.addQueueTask(entity -> {
                         if (entity instanceof LivingEntity) {
                             LivingEntity livingEntity = (LivingEntity) entity;
                             if (livingEntity instanceof PlayerEntity) {
@@ -277,7 +276,6 @@ public class Difficulty {
                             }
                         }
                     });
-                }
             }
         }
 

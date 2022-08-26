@@ -1,8 +1,7 @@
 package com.tighug.difficulty.entity.mixin;
 
 import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
+import com.google.common.collect.Multimap;
 import com.tighug.difficulty.entity.HealthEffect;
 import com.tighug.difficulty.entity.IEntity;
 import com.tighug.difficulty.entity.ILivingEntity;
@@ -21,8 +20,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 @Mixin(PlayerEntity.class)
 public abstract class onPlayerEntity extends LivingEntity implements IEntity {
@@ -100,21 +97,19 @@ public abstract class onPlayerEntity extends LivingEntity implements IEntity {
     }
 
     @Override
-    public int multipleHurt(@NotNull Map<DamageSource, Float> damageSourceFloatMap) {
+    public int multipleHurt(@NotNull Multimap<DamageSource, Float> damageSourceFloatMap) {
         if (multipleHurtInvulnerableTime > 0 || this.isSpectator() || damageSourceFloatMap.isEmpty()) return 0;
         else {
             if (this.isCreative()) {
-                Set<DamageSource> set = Sets.newHashSet();
-                damageSourceFloatMap.keySet().forEach(damageSource -> {
-                    if (damageSource.isBypassInvul()) set.add(damageSource);
+                Iterator<DamageSource> iterator = damageSourceFloatMap.keySet().iterator();
+                iterator.forEachRemaining(ds -> {
+                    if (!ds.isBypassInvul()) iterator.remove();
                 });
-                if (!set.isEmpty()) {
-                    damageSourceFloatMap = Maps.asMap(set, damageSourceFloatMap::get);
-                }
-                else return 0;
+                if (damageSourceFloatMap.isEmpty()) return 0;
             }
             multipleHurtInvulnerableTime = 5;
             return IEntity.super.multipleHurt(damageSourceFloatMap);
         }
     }
+
 }

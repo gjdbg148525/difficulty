@@ -11,10 +11,7 @@ public class Utils {
     public static final String MODID = "difficulty";
     public static final Consumer<ModifiableAttributeInstance> REMOVE_ADVERSE_MODIFIER = modifiableAttributeInstance -> {
         List<AttributeModifier> list = Lists.newArrayList();
-        modifiableAttributeInstance.getModifiers().forEach(attributeModifier -> {
-            if (!(attributeModifier.getAmount() >= 0))
-                list.add(attributeModifier);
-        });
+        modifiableAttributeInstance.getModifiers().stream().filter(a -> !(a.getAmount() >= 0)).forEach(list::add);
         list.forEach(modifiableAttributeInstance::removeModifier);
     };
 
