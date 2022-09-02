@@ -1,0 +1,17 @@
+modLoader = "javafml" #mandatory
+loaderVersion = "[36.2,)" #mandatory This is typically bumped every Minecraft version by Forge. See our download page for lists of versions.
+license = "All rights reserved"
+[[mods]] #mandatory
+modId = "difficulty" #mandatory
+version = "1.1.2" #mandatory
+displayName = "Difficulty Mod" #mandatory
+credits = "Thanks for this example mod goes to Java" #optional
+description = "difficulty Mod"
+
+[[dependencies.difficulty]]
+modId = 'mklapi'
+versionRange = "[1.0.0,)"
+mandatory = true
+ordering = 'AFTER'
+side = "BOTH"
+
